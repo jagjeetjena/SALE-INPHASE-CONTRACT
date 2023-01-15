@@ -1,7 +1,3 @@
-/**
- *Submitted for verification at BscScan.com on 2023-01-09
-*/
-
 // File: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/security/ReentrancyGuard.sol
 
 
