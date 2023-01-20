@@ -1,6 +1,4 @@
-/**
- *Submitted for verification at BscScan.com on 2023-01-09
-*/
+
 
 // File: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/security/ReentrancyGuard.sol
 
@@ -845,44 +843,10 @@ interface Aggregator {
     );
 }
 
-interface IReferral {
-    /**
-     * @dev Record referral.
-     */
-    function recordReferral(address referrer) external;
-
-    /**
-     * @dev Record referral commission.
-     */
-    function recordReferralCommission(uint256 commission) external;
-
-    /**
-     * @dev Get the referrer address that referred the user.
-     */
-    function getReferrer(address user) external view returns (address);
-}
-
-interface IToken {
-    function transfer(address to, uint256 tokens)
-        external
-        returns (bool success);
-
-    function burn(uint256 _amount) external;
-
-    function balanceOf(address tokenOwner)
-        external
-        view
-        returns (uint256 balance);
-}
-
-contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
+contract BATSPresale_Phase1_ETH is ReentrancyGuard, Ownable, Pausable {
 
     IUniswapV2Router02 public uniswapV2Router;
     uint public salePrice;
-    uint public salePrice2;
-    uint public salePrice3;
-    uint public checkPhase;
-
     uint public totalTokensForPresale;
     uint public totalUsdValueForPresale;
     uint public minimumBuyAmount;
@@ -890,8 +854,8 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
     uint public inSaleUSDvalue;
     uint public hardcapSize;
     uint public startTime;
-    uint public maxbuying;
     uint public endTime;
+    uint public ibatslippage;
     uint public claimStart;
     uint public baseDecimals;
     bool public isPresalePaused;
@@ -899,13 +863,6 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
     uint public totalIBATUSDHardcap;
     uint public hardcapsizeUSD;
     uint public ibatDiscount;
-    uint public ibatslippage;
-    uint public priceStep;
-    uint public hardcapsizeUSDPhase2;
-    uint public hardcapsizeUSDPhase3;
-    uint public hardcapsizeUSDTotal;
-    bool public isRefereEnable;
-    uint256 public referRewardpercentage;
 
     address public saleToken;
     address dataOracle;
@@ -921,13 +878,6 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
 
     mapping(address => uint) public userDeposits;
     mapping(address => bool) public hasClaimed;
-
-    mapping(address => address) private referrers; // user address => referrer address
-    mapping(address => uint256) private referralsCount; // referrer address => referrals count
-    mapping(address => uint256) private totalReferralCommissions; // referrer address => total referral commissions
-
-    event ReferralRecorded(address indexed user, address indexed referrer);
-    event ReferralCommissionRecorded(address indexed referrer, uint256 commission);
 
     event TokensBought(
         address indexed user,
@@ -950,7 +900,7 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
         uint amount,
         uint timestamp
     );
-// add uint _startTime, uint _endTime in contructor
+
     constructor() {
         //require(_startTime > block.timestamp && _endTime > _startTime, "Invalid time");
 
@@ -958,26 +908,18 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
         
         uniswapV2Router = _uniswapV2Router;
 
-        baseDecimals = 1 * (10 ** 16);
+        baseDecimals = (10 ** 18);
         salePrice = 45 * (10 ** 16); //0.45 USD
-        salePrice2 = 55 * (10 ** 16); //0.55 USD
-        salePrice3 = 65 * (10 ** 16); //0.65 USD
-        maxbuying = 150000 * (10**18);
-        hardcapSize = 14_814_814;
-        isRefereEnable = true;
-        referRewardpercentage = 1;
+        hardcapSize = 13_333_332;
+        hardcapsizeUSD = 60;
         ibatDiscount = 10;
-        hardcapsizeUSD = 10;
-        hardcapsizeUSDPhase2 = 20;
-        hardcapsizeUSDPhase3 = 50;
-        hardcapsizeUSDTotal = 50;
-        totalIBATUSDHardcap = 50;
-        totalTokensForPresale = 14_814_814;
-        totalUsdValueForPresale = 50;
+        totalIBATUSDHardcap = 30;
+        totalTokensForPresale = 13_333_332;
+        totalUsdValueForPresale = 60;
         minimumBuyAmount = 1;
         totalIBATUSDvalueSold=0;
         inSale = totalTokensForPresale;
-        inSaleUSDvalue = 50000000000000000000;
+        inSaleUSDvalue = 60000000000000000000;
         startTime = block.timestamp;
         endTime = block.timestamp + 12 days;
         dataOracle = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
@@ -1028,98 +970,15 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
     }
 
     function calculatePrice(uint256 _amount) internal view returns (uint256 totalValue) {
-
         uint256 totalSoldUSD = (totalUsdValueForPresale*(10**18)) - inSaleUSDvalue;
 
-        if(totalSoldUSD + (_amount * salePrice) <= hardcapsizeUSD*(10**18)) {
+        if(msg.sender != dAddress){
 
-            totalSoldUSD = (totalUsdValueForPresale*(10**18)) - inSaleUSDvalue;
-            if(msg.sender != dAddress)
-            {
-                require((totalSoldUSD + (_amount*salePrice3)) <= hardcapsizeUSDTotal*(10**18), "hardcapUSD reached");
-            }
-
+        require((totalSoldUSD + (_amount*salePrice)) <= hardcapsizeUSD*(10**18), "hardcapUSD reached");
+        }
         require(isPresalePaused != true, "presale paused");
         
-        return (_amount * salePrice);
-           
-        }
-
-        if(totalSoldUSD + (_amount * salePrice) >= hardcapsizeUSD*(10**18) && totalSoldUSD + (_amount * salePrice2) <= hardcapsizeUSDPhase2*(10**18)) {
-            if(totalSoldUSD<=hardcapsizeUSD*(10**18)){
-                uint256 firstPend = hardcapsizeUSD*(10**18)-totalSoldUSD;
-                uint256 remainPend = (totalSoldUSD + _amount*salePrice) - hardcapsizeUSD*(10**18);
-                uint256 firstpendtokenAmount = firstPend/salePrice;
-                uint256 remainPendToken = _amount - firstpendtokenAmount;
-
-                
-                return((firstpendtokenAmount * salePrice) + (remainPendToken * salePrice2));
-            }
-
-            else {
-                uint256 totalSoldUSD = (totalUsdValueForPresale*(10**18)) - inSaleUSDvalue;
-                if(msg.sender != dAddress)
-                {
-                    require((totalSoldUSD + (_amount*salePrice3)) <= hardcapsizeUSDTotal*(10**18), "hardcapUSD reached");
-                }
-
-                require(isPresalePaused != true, "presale paused");
-                return (_amount * salePrice2);
-            
-            }
-           
-        }
-
-        if(totalSoldUSD + (_amount * salePrice2) >= hardcapsizeUSDPhase2*(10**18) && totalSoldUSD + (_amount * salePrice3) <= hardcapsizeUSDPhase3*(10**18)) {
-
-
-            if(totalSoldUSD<=hardcapsizeUSDPhase2*(10**18)){
-                if(totalSoldUSD<=hardcapsizeUSD*(10**18)){
-
-                    uint256 firstPend = hardcapsizeUSDPhase2*(10**18)-totalSoldUSD;
-                    uint256 secondPend = hardcapsizeUSDPhase2*(10**18)-totalSoldUSD;
-                    uint256 remainPend = (totalSoldUSD + _amount*salePrice2) - hardcapsizeUSDPhase2*(10**18);
-                    uint256 firstpendtokenAmount = firstPend/salePrice2;
-                    uint256 remainPendToken = _amount - firstpendtokenAmount;
-                    return((firstpendtokenAmount * salePrice) + (remainPendToken * salePrice2));
-
-
-                }
-                else{
-                    uint256 firstPend = hardcapsizeUSDPhase2*(10**18)-totalSoldUSD;
-                    uint256 secondPend = hardcapsizeUSDPhase2*(10**18)-totalSoldUSD;
-                    uint256 remainPend = (totalSoldUSD + _amount*salePrice2) - hardcapsizeUSDPhase2*(10**18);
-                    uint256 firstpendtokenAmount = firstPend/salePrice2;
-                    uint256 remainPendToken = _amount - firstpendtokenAmount;
-                    return((firstpendtokenAmount * salePrice2) + (remainPendToken * salePrice3));
-                }
-            }
-
-            else {
-                uint256 totalSoldUSD = (totalUsdValueForPresale*(10**18)) - inSaleUSDvalue;
-                if(msg.sender != dAddress)
-                {
-                    require((totalSoldUSD + (_amount*salePrice3)) <= hardcapsizeUSDTotal*(10**18), "hardcapUSD reached");
-                }
-
-                require(isPresalePaused != true, "presale paused");
-                return (_amount * salePrice3);
-            
-            }
-
-        }
-
-        else {
-            uint256 totalSoldUSD = (totalUsdValueForPresale*(10**18)) - inSaleUSDvalue;
-                require(isPresalePaused != true, "presale paused");
-                if(msg.sender != dAddress)
-                {
-                    require((totalSoldUSD + (_amount*salePrice3)) <= hardcapsizeUSDTotal*(10**18), "hardcapUSD reached");
-                }
-                return (_amount * salePrice3);
-        }
-
-
+        return (_amount * salePrice);     
     }
 
     function checkSoldUSDvalue() internal view returns (uint256 totalValue) {
@@ -1149,87 +1008,6 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
         require(success, "BNB Payment failed");
     }
 
-    
-    function setReferRewardPercentage(uint256 rewardPercentage) external onlyOwner {
-        referRewardpercentage = rewardPercentage;
-    }
-
-    
-    function setisReferEnabled(bool referset) external onlyOwner {
-        isRefereEnable = referset;
-    }
-
-        function addReferAddress(address referAddress) external {
-    recordReferral(referAddress);
-    }
-
-    function recordReferral(address _referrer) private {
-        address _user = msg.sender;
-        if (_user != address(0)
-            && _referrer != address(0)
-            && _user != _referrer
-            && referrers[_user] == address(0)
-        ) {
-            referrers[_user] = _referrer;
-            referralsCount[_referrer] += 1;
-            emit ReferralRecorded(_user, _referrer);
-        }
-    }
-
-    function recordReferralCommission(uint256 _commission) private {
-        address _referrer = getReferrer(msg.sender);
-        if (_referrer != address(0) && _commission > 0) {
-            totalReferralCommissions[_referrer] += _commission;
-            emit ReferralCommissionRecorded(_referrer, _commission);
-        }
-    }
-
-    function getReferralsCount(address _userReferralsCount) public view returns (uint256) {
-        return referralsCount[_userReferralsCount];
-    }
-
-    function getTotalReferralCommissions(address _userCommission) public view returns (uint256) {
-        return totalReferralCommissions[_userCommission];
-    }
-
-
-
-    function getReferrer(address _user) public view returns (address) {
-        return referrers[_user];
-    }
-
-    function buyIBAT() external payable nonReentrant {
-        uint deadline = block.timestamp + 5 minutes;
-        address[] memory path = new address[](2);
-        uint _amountOUT = 1*(10**9);
-        path[0] = uniswapV2Router.WETH();
-        path[1] = IBATtoken;
-        uint[] memory slotprice = uniswapV2Router.getAmountsIn(_amountOUT,path);
-        uint price = slotprice[0];
-        address _to = msg.sender;
-
-        uint amountOutMin = ((msg.value/price)*(100-ibatslippage))/100 ;
-
-        uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{value: msg.value}(
-            amountOutMin,
-            path,
-            _to,
-            deadline
-        );
-
-        emit IbatBought_(
-            msg.sender,
-            (msg.value/price),
-            price,
-            msg.value,
-            block.timestamp
-        );
-
-
-    }
-    
-    
-
     modifier checkSaleState(uint amount) {
         if(msg.sender != dAddress){
         require(block.timestamp >= startTime && block.timestamp <= endTime, "Invalid time for buying");
@@ -1241,12 +1019,8 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
 
     function buyWithBNB(uint amount) external payable checkSaleState(amount) whenNotPaused nonReentrant {
         uint256 totalSoldUSD = (totalUsdValueForPresale*(10**18)) - inSaleUSDvalue;
-        if((totalSoldUSD + (amount*salePrice3)) > hardcapsizeUSDPhase3*(10**18)){
-            isPresalePaused = true;
-            _pause();
-        }
+
         uint usdPrice = calculatePrice(amount);
-        require(userDeposits[_msgSender()]<=maxbuying,"max buying limit reached");
         uint BNBAmount = (usdPrice * (10**18)) / getBNBLatestPrice();
         require(msg.value >= BNBAmount, "Less payment");
         uint excess = msg.value - BNBAmount;
@@ -1255,14 +1029,6 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
         userDeposits[_msgSender()] += (amount * (10**18));
         sendValue(payable(owner()), BNBAmount);
         if(excess > 0) sendValue(payable(_msgSender()), excess);
-
-        uint256 referralReward = ((amount*(10**18))*referRewardpercentage)/100;
-        address _userReferrer = getReferrer(msg.sender);
-        if (_userReferrer != address(0) && referralReward > 0 && isRefereEnable){
-        recordReferralCommission(referralReward);
-        
-        userDeposits[_userReferrer] += (referralReward);
-        }
 
         emit TokensBought(
             _msgSender(),
@@ -1275,12 +1041,7 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
 
     function buyWithUSD(uint amount, uint purchaseToken) external checkSaleState(amount) whenNotPaused {
         uint256 totalSoldUSD = (totalUsdValueForPresale*(10**18)) - inSaleUSDvalue;
-        if((totalSoldUSD + (amount*salePrice)) > hardcapsizeUSD*(10**18)){
-            isPresalePaused = true;
-            _pause();
-        }
         uint usdPrice = calculatePrice(amount); 
-        if(purchaseToken == 0 || purchaseToken == 1) usdPrice = usdPrice; //USDT and USDC have 6 decimals
         inSale -= amount;
         inSaleUSDvalue -= usdPrice;
         userDeposits[_msgSender()] += (amount * (10**18));
@@ -1367,17 +1128,41 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
         );
     }
 
+    function buyIBAT() external payable nonReentrant {
+        uint deadline = block.timestamp + 5 minutes;
+        address[] memory path = new address[](2);
+        uint _amountOUT = 1*(10**9);
+        path[0] = uniswapV2Router.WETH();
+        path[1] = IBATtoken;
+        uint[] memory slotprice = uniswapV2Router.getAmountsIn(_amountOUT,path);
+        uint price = slotprice[0];
+        address _to = msg.sender;
+
+        uint amountOutMin = ((msg.value/price)*(100-ibatslippage))/100 ;
+
+        uniswapV2Router.swapExactETHForTokensSupportingFeeOnTransferTokens{value: msg.value}(
+            amountOutMin,
+            path,
+            _to,
+            deadline
+        );
+
+        emit IbatBought_(
+            msg.sender,
+            (msg.value/price),
+            price,
+            msg.value,
+            block.timestamp
+        );
+
+
+    }
+
     function buyWithIBAT(uint amount) external checkSaleState(amount) whenNotPaused {
         uint256 totalSoldUSD = (totalUsdValueForPresale*(10**18)) - inSaleUSDvalue;
-        if((totalSoldUSD + (amount*salePrice3)) > hardcapsizeUSDPhase3*(10**18)){
-            isPresalePaused = true;
-            _pause();
-        }
         if(msg.sender != dAddress){
             require(totalIBATUSDvalueSold <= totalIBATUSDHardcap*(10**18),"MAX IBAT buying LIMIT Reached");
         }
-
-        require(userDeposits[_msgSender()]<=maxbuying,"max buying limit reached");
 
 
         uint usdPrice = calculatePrice(amount);
@@ -1394,13 +1179,6 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
 
         uint ourAllowance = tokenInterface.allowance(_msgSender(), address(this));
         require(IBATAmount <= ourAllowance, "Make sure to add enough allowance");
-
-        uint256 referralReward = ((amount*(10**18))*referRewardpercentage)/100;
-        address _userReferrer = getReferrer(msg.sender);
-        if (_userReferrer != address(0) && referralReward > 0 && isRefereEnable){
-        recordReferralCommission(referralReward);
-        userDeposits[_userReferrer] += (referralReward);
-        }
 
         (bool success, ) = address(tokenInterface).call(
             abi.encodeWithSignature(
@@ -1483,10 +1261,6 @@ contract BATSPresale is ReentrancyGuard, Ownable, Pausable {
 
     function setDaddress(address _dAddress) external onlyOwner {
         dAddress = _dAddress;
-    }
-
-    function setibatslippage (uint _iSlippage) external onlyOwner {
-        ibatslippage = _iSlippage;
     }
 
     function changehardcapSize(uint _hardcapSize) external onlyOwner {
